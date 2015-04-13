@@ -1,0 +1,9 @@
+/* CSS Document */
+
+
+div{
+	height:100px;
+	background-image: url(../../../img/test/test2.png);
+	background-repeat:no-repeat;
+	background-position:right top;
+}
