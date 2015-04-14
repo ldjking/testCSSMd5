@@ -7,71 +7,39 @@ module.exports = function(grunt) {
   // Project configuration.
   grunt.initConfig({
     pkg: grunt.file.readJSON('package.json'),
-    css_import: {
-      files: {
-        'dist/all.css': ['src/css/mod/pageA/pageA.css'],
-      },
-    },
-    cssmin: {
-      options: {
-        shorthandCompacting: false,
-        sourceMap: true,
-        advanced: false,
-        aggressiveMerging: false,
-        debug: true,
-        restructuring: false,
-        roundingPrecision: -1,
-        rebase: true
-      },
-      target: {
-        files: {
-          'dist/all.css': ['src/css/mod/pageA/pageA.css'],
-        }
-      }
-    }
   });
-
-
-
-  //grunt.task.loadTasks("grunt_tasks/test2");
 
   // 加载所有grunt任务的插件。
   require('matchdep').filterDev('grunt-*').forEach(grunt.loadNpmTasks);
   // 加载包含 "uglify" 任务的插件。
-  grunt.loadNpmTasks('grunt-contrib-watch');
 
   // 默认被执行的任务列表。
   grunt.registerTask('default', ['cssbuild']);
 
-  grunt.event.on('watch', function(action, filepath, target) {
-    grunt.log.writeln(target + ': ' + filepath + ' has ' + action);
-    if (/\.tpl$/.test(filepath) && !/deleted/.test(action)) {
-      //如果是tpl文件 且不是删除动作
-      grunt.config('compile.src', filepath);
-    }
-  });
-
-  grunt.registerTask('hello', 'A sample task that just say hello.', function(arg1, arg2) {
-    console.log("hello");
-  });
 
   grunt.registerTask('cssbuild', 'build css files', function(arg1, arg2) {
+	//需要处理的文件 包括jsp和html
     var files = grunt.file.expand(["src/**/*.jsp", "src/**/*.html"]);
-    console.log("jsp files:", files);
+    console.log("待处理文件", files);
     for (var i = 0; i < files.length; i++) {
-      parseJsp(files[i]);
+      parseJsp(files[i]);//逐项处理
     }
   });
 
-  function parseCssPath(file, cssFile) {
+  function parseCssPath(file, cssFile) {//解析CSS路径
     var path = require("path");
-    if (cssFile) {
-      //console.log("cssFile", cssFile);
-      var cssPath = path.join(file, "../",cssFile);
-      //console.log("cssPath", cssPath);
+	var cssPath;//待返回的cssPath
+	
+	cssFile=cssFile||"";
+	cssFile=cssFile.replace(/\?.*$/,"");//清除后面已有的query版本号
+	console.log("cssFile",cssFile);
+    if (/^\$/g.test(cssFile)) {//这里要判断路径类型，jsp的是绝对路径
+	  cssPath=cssFile.replace(/^\$.*?[\/|\\]/g,"src/");//替换规则
+	  //todo 这里写替换规则
       return cssPath;
-    } else {
-      console.log("不是有效的css link标签");
+    }else{
+	  cssPath = path.join(file, "../",cssFile);
+      return cssPath;
     }
   }
 
@@ -79,7 +47,7 @@ module.exports = function(grunt) {
     var fileContent = grunt.file.read(file);
 
     var cssFiles = fileContent.match(/<link.*?rel="stylesheet".*?>/ig);
-    console.log("cssFiles", cssFiles);
+    //console.log("cssFiles", cssFiles);
     var mapings=[];
     for (var i = 0; i < cssFiles.length; i++) {
       var cssHref = (/href=['"](.*)?['"]/ig).exec(cssFiles[i]);
@@ -89,11 +57,10 @@ module.exports = function(grunt) {
 
 
     var afterRevision=addJSPRevision(file,fileContent,mapings);//修改版本号的jsp内容
-    //console.log("afterRevision",afterRevision);
-
-    var destFile=file.replace("src","dist");
-    grunt.file.write(destFile,afterRevision);
-    return mapings;
+    var destFile=file.replace("src","dist");//修改版本号后的文件存放位置  todo  要改成真实的规则
+	
+    grunt.file.write(destFile,afterRevision);//保存构建后的文件
+    return mapings;//返回资源文件MD5映射
   }
 
   function buildCss(file, cssHref) {
@@ -104,9 +71,7 @@ module.exports = function(grunt) {
     var cssPath = parseCssPath(file, cssHref);
     var cssSrc = cssPath.replace(/\\/g, "/");
 
-    console.log("cssSrc",cssSrc);
-    //grunt.config.set("css_import", conf);
-    //grunt.task.run("css_import");
+    //console.log("cssSrc",cssSrc);
     var options = {
       rebase: false,
       report: 'min',
@@ -141,19 +106,19 @@ module.exports = function(grunt) {
     var shortMd5=md5Str.substr(0,6);
     var cssDest = cssSrc.replace("src", "dist").replace(".css","."+shortMd5+".css");
 
-    console.log("shortMd5",shortMd5);
-    console.log("cssDest",cssDest);
+    //console.log("shortMd5",shortMd5);
+    //console.log("cssDest",cssDest);
 
     grunt.file.write(cssDest, compiledCssString);//产生了一个新的css文件
     //修改jsp的css文件版本号  当有多个css文件时  要增量替换
     return {
       key:cssHref,
-      value:cssHref.replace(".css","."+shortMd5+".css")
+      value:cssHref.replace(".css","."+shortMd5+".css").replace(/\?.*?$/g,"")
     };
   }
 
   function addJSPRevision(file,fileContent,mapings){//给jsp文件css引用加上版本号
-    console.log("maping",mapings);
+    //console.log("maping",mapings);
     for(var i=0;i<mapings.length;i++){
       var map=mapings[i];
       fileContent=fileContent.replace(map.key,map.value);
